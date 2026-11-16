@@ -9,6 +9,8 @@ those spots that riders fill by tapping. Free, with no account.
 This is version 0.1.0, a beta. Magpies swoop from about August to November, so outside those
 months nothing warns.
 
+Swoop Ahead is free. If it's useful to you, you can [leave a tip](https://ko-fi.com/glen840924).
+
 ## What it does on a ride
 
 - About 250 m before a known spot, the Karoo shows **Magpie ahead** with the distance, the spot's
