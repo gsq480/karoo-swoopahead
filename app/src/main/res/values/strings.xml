@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Swoop Ahead</string>
+    <string name="extension_name">Swoop Ahead</string>
+    <string name="swoop_name">Magpie</string>
+    <string name="swoop_description">Distance to the nearest magpie swooping spot. Tap it to mark a swoop where you are</string>
+    <string name="action_mark_swoop">Mark a swoop</string>
+</resources>

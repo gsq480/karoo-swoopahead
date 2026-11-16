@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A bird diving, wings back: the swoop. One flat shape, so it reads at alert size. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M40,38 L31,29 C33,22 30,14 22,9 L24,18 C19,15 12,15 5,19 L16,23 C12,25 9,29 8,34 L20,29 C23,32 27,34 31,34 Z" />
+</vector>

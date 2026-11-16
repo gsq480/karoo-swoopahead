@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- To fetch the spots near the rider and to send a marked swoop to the shared map. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <application
+        android:name=".SwoopAheadApp"
+        android:allowBackup="false"
+        android:icon="@drawable/ic_magpie"
+        android:label="@string/app_name"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+
+        <!-- Status and settings: what the Karoo holds, and everything a rider can change. -->
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="true"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- The Magpie field's tap. Not exported: only this app's own field can send it. -->
+        <receiver
+            android:name=".swoop.SwoopTapReceiver"
+            android:exported="false" />
+
+        <service
+            android:name=".SwoopAheadExtension"
+            android:exported="true"
+            tools:ignore="ExportedService">
+            <intent-filter>
+                <action android:name="io.hammerhead.karooext.KAROO_EXTENSION" />
+            </intent-filter>
+            <meta-data
+                android:name="io.hammerhead.karooext.EXTENSION_INFO"
+                android:resource="@xml/extension_info" />
+        </service>
+
+        <!-- Where the Karoo looks for a newer version when a rider taps Update. -->
+        <meta-data
+            android:name="io.hammerhead.karooext.MANIFEST_URL"
+            android:value="https://github.com/gsq480/karoo-swoopahead/releases/latest/download/manifest.json" />
+    </application>
+</manifest>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The magpie warning: orange with black text, a pair that says "act". -->
+    <color name="swoop_orange">#FC5200</color>
+    <color name="swoop_ink">#000000</color>
+</resources>

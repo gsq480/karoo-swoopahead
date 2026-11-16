@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Swoop Ahead admin</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.css">
+<style>
+  :root { --ground: #f4f2ec; --second: #1d1d1b; --accent: #fc5200; --line: #d6d2c6; --dim: #6a675f; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; font: 15px/1.45 system-ui, sans-serif; background: var(--ground); color: var(--second); }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; display: grid; gap: 20px; }
+  main > *, #app > * { min-width: 0; }
+  #app { display: grid; gap: 20px; }
+  input { max-width: 100%; }
+  h1 { font-size: 22px; margin: 0; }
+  h2 { font-size: 16px; margin: 0 0 8px; }
+  p { margin: 0 0 8px; }
+  .dim { color: var(--dim); }
+  #map { height: 460px; border: 1px solid var(--line); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button, input, select { font: inherit; padding: 8px 12px; border: 1px solid var(--second); background: #fff; color: var(--second); border-radius: 4px; }
+  button { cursor: pointer; }
+  button.main { background: var(--second); color: #fff; }
+  button.on { background: var(--accent); border-color: var(--accent); color: #000; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  section { background: #fff; border: 1px solid var(--line); padding: 14px; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 6px 10px 6px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  label { display: grid; gap: 4px; margin-bottom: 12px; max-width: 520px; }
+  .problem { color: #a11; }
+  #note { min-height: 1.4em; font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <div class="row" style="justify-content: space-between">
+    <h1>Swoop Ahead admin</h1>
+    <div class="row"><span id="season" class="dim"></span><button id="signout" hidden>Sign out</button></div>
+  </div>
+
+  <section id="gate">
+    <h2>Passphrase</h2>
+    <form id="gateform" class="row">
+      <input id="pass" type="password" autocomplete="current-password" aria-label="Passphrase" required>
+      <button class="main">Open</button>
+    </form>
+    <p id="gatenote" class="problem"></p>
+  </section>
+
+  <div id="app" hidden>
+    <section>
+      <h2>Spots</h2>
+      <p class="dim">Orange is live or will be next season. Grey is quiet for this season. Black outline is removed. Click a spot to change it.</p>
+      <div class="row" style="margin-bottom: 8px">
+        <button id="addmode">Add a spot</button>
+        <label style="display: flex; gap: 6px; align-items: center; margin: 0"><input type="checkbox" id="showremoved"> Show removed spots</label>
+        <span id="count" class="dim"></span>
+      </div>
+      <div id="map"></div>
+      <p id="note" role="status"></p>
+      <div id="picked" hidden>
+        <p id="pickedtext"></p>
+        <div class="row">
+          <input id="name" maxlength="60" placeholder="Name, such as the road" aria-label="Spot name">
+          <button id="rename">Save name</button>
+          <button id="quiet">Quiet this season</button>
+          <button id="wake">Make active</button>
+          <button id="remove">Remove</button>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Settings</h2>
+      <form id="settings"></form>
+    </section>
+
+    <section>
+      <h2>Newest reports</h2>
+      <p class="dim">The sender column is the first six characters of a Karoo's random id. Many reports from one sender in odd places is the sign of junk.</p>
+      <div class="scroll"><table id="reports"></table></div>
+    </section>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.js"></script>
+<script>
+const LABELS = {
+  alerts: ["Warnings", "on or off. Off stops every Karoo warning."],
+  season_months: ["Swooping months", "Month numbers with commas between. 8,9,10,11 is August to November."],
+  keep_seasons: ["Seasons a spot stays after its last report", "2 keeps last year's spots."],
+  merge_m: ["Reports this close together are one spot (metres)", ""],
+  sync_min: ["How often a Karoo asks for the list on a ride (minutes)", ""],
+  reports_per_hour: ["Reports allowed per hour from one sender", ""],
+  tip_url: ["Tip link address", "Leave empty to hide the tip link on the website."],
+};
+const $ = (id) => document.getElementById(id);
+let pass = sessionStorage.getItem("swoop-admin") || "";
+let state = null, map = null, picked = null, adding = false;
+
+async function api(path, body) {
+  const res = await fetch("/api/admin/" + path, {
+    method: body ? "POST" : "GET",
+    headers: { Authorization: "Bearer " + pass, ...(body ? { "Content-Type": "application/json" } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data.error || "That did not work"), { status: res.status, data });
+  return data;
+}
+
+async function open() {
+  try {
+    state = await api("state");
+  } catch (e) {
+    $("gatenote").textContent = pass ? e.message : "";
+    pass = ""; sessionStorage.removeItem("swoop-admin");
+    return;
+  }
+  sessionStorage.setItem("swoop-admin", pass);
+  $("pass").value = "";
+  $("gate").hidden = true; $("app").hidden = false; $("signout").hidden = false;
+  if (!map) makeMap();
+  draw();
+  drawSettings(); drawReports();
+}
+
+function makeMap() {
+  map = new maplibregl.Map({ container: "map", style: "https://tiles.openfreemap.org/styles/positron", center: [134, -28], zoom: 3.2 });
+  map.addControl(new maplibregl.NavigationControl());
+  map.on("load", () => {
+    map.addSource("spots", { type: "geojson", data: geo() });
+    map.addLayer({ id: "spots", type: "circle", source: "spots", paint: {
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 4, 12, 9],
+      "circle-color": ["match", ["get", "kind"], "known", "#fc5200", "quiet", "#9a968c", "old", "#d9c9b8", "#ffffff"],
+      "circle-stroke-color": "#1d1d1b", "circle-stroke-width": ["match", ["get", "kind"], "removed", 2, 1],
+    } });
+    map.on("click", "spots", (e) => { if (!adding) pick(Number(e.features[0].properties.id)); });
+    map.on("click", async (e) => {
+      if (!adding) return;
+      setAdding(false);
+      await change({ action: "add", lat: e.lngLat.lat, lng: e.lngLat.lng }, "Spot added.");
+    });
+    map.on("mouseenter", "spots", () => { map.getCanvas().style.cursor = "pointer"; });
+    map.on("mouseleave", "spots", () => { map.getCanvas().style.cursor = adding ? "crosshair" : ""; });
+    draw();
+    fit();
+  });
+}
+
+function kind(s) { return s.status === "removed" ? "removed" : s.status === "quiet" ? "quiet" : s.known ? "known" : "old"; }
+function shown() { return state.spots.filter((s) => $("showremoved").checked || s.status !== "removed"); }
+function geo() {
+  return { type: "FeatureCollection", features: shown().map((s) => ({
+    type: "Feature", geometry: { type: "Point", coordinates: [s.lng, s.lat] }, properties: { id: s.id, kind: kind(s) } })) };
+}
+function fit() {
+  const pts = shown();
+  if (!pts.length) return;
+  const b = new maplibregl.LngLatBounds();
+  pts.forEach((s) => b.extend([s.lng, s.lat]));
+  map.fitBounds(b, { padding: 60, maxZoom: 13, duration: 0 });
+}
+function draw() {
+  if (map && map.getSource("spots")) map.getSource("spots").setData(geo());
+  const live = state.spots.filter((s) => s.live).length, all = state.spots.filter((s) => s.status !== "removed").length;
+  $("count").textContent = all + " spots, " + live + " warning Karoos today";
+  $("season").textContent = state.season ? "In season" : "Out of season";
+  if (picked) pick(picked);
+}
+function pick(id) {
+  const s = state.spots.find((x) => x.id === id);
+  picked = s ? id : null;
+  $("picked").hidden = !s;
+  if (!s) return;
+  $("pickedtext").textContent = "Spot " + s.id + ": " + (s.name || "no name") + ". " + s.reports + (s.reports === 1 ? " report" : " reports") +
+    ", last " + s.last_report.slice(0, 10) + ". Status: " + s.status +
+    (s.status === "removed" ? "." : s.status === "quiet" ? " for this season." : s.live ? ", warning today." : s.known ? ", on the map, no warnings outside the season." : ", too old for the map.");
+  $("name").value = s.name || "";
+  $("wake").hidden = s.status === "active";
+  $("quiet").hidden = s.status !== "active";
+  $("remove").hidden = s.status === "removed";
+}
+function setAdding(on) {
+  adding = on;
+  $("addmode").classList.toggle("on", on);
+  $("addmode").textContent = on ? "Click the map where it swoops" : "Add a spot";
+  if (map) map.getCanvas().style.cursor = on ? "crosshair" : "";
+}
+async function change(body, done) {
+  try {
+    const answer = await api("spot", body);
+    state = await api("state");
+    $("note").textContent = done;
+    if (body.action === "add") picked = answer.spot;
+    draw(); drawReports();
+  } catch (e) { $("note").textContent = e.message; }
+}
+
+function drawSettings() {
+  const form = $("settings");
+  form.innerHTML = "";
+  for (const [key, [label, help]] of Object.entries(LABELS)) {
+    const wrap = document.createElement("label");
+    const title = document.createElement("span"); title.textContent = label;
+    let input;
+    if (key === "alerts") {
+      input = document.createElement("select");
+      for (const v of ["on", "off"]) { const o = document.createElement("option"); o.value = v; o.textContent = v; input.append(o); }
+    } else {
+      input = document.createElement("input");
+    }
+    input.name = key; input.id = "set-" + key; input.value = state.settings[key];
+    const small = document.createElement("span"); small.className = "dim"; small.id = "help-" + key;
+    small.textContent = help + (state.settings[key] !== state.defaults[key] ? " Default: " + (state.defaults[key] || "empty") + "." : "");
+    wrap.append(title, input, small);
+    form.append(wrap);
+  }
+  const save = document.createElement("button"); save.className = "main"; save.textContent = "Save settings";
+  const note = document.createElement("span"); note.id = "setnote"; note.style.marginLeft = "10px";
+  form.append(save, note);
+}
+$("settings").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const body = {};
+  for (const key of Object.keys(LABELS)) {
+    const value = $("set-" + key).value.trim();
+    if (value !== state.settings[key]) body[key] = value;
+  }
+  if (!Object.keys(body).length) { drawSettings(); $("setnote").textContent = "Nothing changed."; return; }
+  try {
+    await api("settings", body);
+    state = await api("state");
+    drawSettings(); draw();
+    $("setnote").textContent = "Saved.";
+  } catch (err) {
+    $("setnote").textContent = err.message;
+    for (const [key, problem] of Object.entries(err.data?.problems || {})) {
+      $("help-" + key).textContent = "Needs " + problem + "."; $("help-" + key).className = "problem";
+    }
+  }
+});
+
+function drawReports() {
+  const t = $("reports");
+  t.innerHTML = "<tr><th>Received</th><th>Happened</th><th>From</th><th>Sender</th><th>Spot</th><th>Place</th></tr>";
+  for (const r of state.reports) {
+    const tr = document.createElement("tr");
+    const cells = [r.created_at.replace("T", " ").slice(0, 16), r.at.replace("T", " ").slice(0, 16), r.source, r.install || "", r.spot_id,
+      r.lat.toFixed(4) + ", " + r.lng.toFixed(4)];
+    cells.forEach((c, i) => {
+      const td = document.createElement("td");
+      if (i === 4) { const b = document.createElement("button"); b.textContent = c; b.onclick = () => { const s = state.spots.find((x) => x.id === r.spot_id); if (s) { map.flyTo({ center: [s.lng, s.lat], zoom: 14 }); pick(s.id); } }; td.append(b); }
+      else td.textContent = c;
+      tr.append(td);
+    });
+    t.append(tr);
+  }
+}
+
+$("gateform").addEventListener("submit", (e) => { e.preventDefault(); pass = $("pass").value; $("gatenote").textContent = ""; open(); });
+$("signout").onclick = () => { sessionStorage.removeItem("swoop-admin"); location.reload(); };
+$("addmode").onclick = () => setAdding(!adding);
+$("showremoved").onchange = () => draw();
+$("rename").onclick = () => change({ action: "rename", id: picked, name: $("name").value }, "Name saved.");
+$("quiet").onclick = () => change({ action: "quiet", id: picked }, "Quiet for this season. A new report wakes it.");
+$("wake").onclick = () => change({ action: "wake", id: picked }, "Active again.");
+$("remove").onclick = () => change({ action: "remove", id: picked }, "Removed. A new report there brings it back.");
+if (pass) open();
+</script>
+</body>
+</html>

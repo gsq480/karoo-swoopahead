@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ExtensionInfo
+    displayName="@string/extension_name"
+    icon="@drawable/ic_magpie"
+    id="swoopahead"
+    scansDevices="false"
+    mapLayer="true"
+    fitFile="false">
+    <DataType
+        description="@string/swoop_description"
+        displayName="@string/swoop_name"
+        graphical="true"
+        icon="@drawable/ic_magpie"
+        typeId="swoop" />
+    <BonusAction
+        actionId="mark-swoop"
+        displayName="@string/action_mark_swoop" />
+</ExtensionInfo>

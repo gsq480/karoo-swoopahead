@@ -1,0 +1,16 @@
+# Swoop Ahead on Cloudflare Pages: the website in public/, the service in functions/.
+#
+#   wrangler pages dev                      run it on this computer
+#   wrangler pages deploy                   publish it
+#
+# The live database's id goes in database_id after `wrangler d1 create swoopahead`.
+# The admin passphrase is a secret, never in this file:
+#   wrangler pages secret put ADMIN_PASSPHRASE --project-name swoopahead
+name = "swoopahead"
+pages_build_output_dir = "public"
+compatibility_date = "2025-11-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "swoopahead"
+database_id = "11111111-2222-4333-8444-555555555555"

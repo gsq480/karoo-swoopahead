@@ -1,0 +1,16 @@
+.gradle/
+.kotlin/
+build/
+local.properties
+*.keystore
+*.jks
+.DS_Store
+CLAUDE.md
+AGENTS.md
+# Cloudflare's local state and local-only secrets.
+.wrangler/
+.dev.vars
+node_modules/
+# Downloaded open data and other working files.
+data/
+out/
