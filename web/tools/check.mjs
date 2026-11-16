@@ -18,11 +18,11 @@ import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 
 import {
-  forKaroo, forMap, haversineM, inAustralia, inSeason, isKnown, isLive, liveSpots, localYearMonth,
+  confirmsHeld, forKaroo, forMap, haversineM, inAustralia, inSeason, isKnown, isLive, liveSpots, localYearMonth,
   plausibleReport, validReport, MAX_SPOTS,
 } from "../lib/swoop-core.ts";
 import {
-  DEFAULTS, addReport, allSpots, quietSpot, readSettings, removeSpot, renameSpot, rulesFrom,
+  DEFAULTS, addReport, allSpots, approveSpot, quietSpot, readSettings, removeReport, removeSpot, renameSpot, rulesFrom,
   settingProblem, spotsNear, wakeSpot, withinLimit, writeSetting,
 } from "../lib/store.ts";
 
@@ -160,7 +160,7 @@ console.log("what the Karoo and the map are sent");
   check("to a Karoo: positions to five places, dates to the local day", k.lat === -35.30123 && k.last === "2026-11-03");
   const m = forMap({ ...many[0], lat: -35.3012345678, lng: 149.1054321, last_report: "2026-11-02T20:00:00Z", reports: 3 });
   check("to the map: positions to four places, the day, the count",
-    m[0] === -35.3012 && m[1] === 149.1054 && m[2] === "2026-11-03" && m[3] === 3 && m.length === 4);
+    m[0] === -35.3012 && m[1] === 149.1054 && m[2] === "2026-11-03" && m[3] === 3 && m[4] === 0 && m.length === 5);
 }
 
 console.log("bad reports");
@@ -180,6 +180,48 @@ console.log("bad reports");
   check("a report from next week is refused", !plausibleReport({ ...ok, at: "2026-10-09T00:00:00Z" }, now));
   check("a report a Karoo held for a month passes", plausibleReport({ ...ok, at: "2026-09-02T00:00:00Z" }, now));
   check("a report from last year is refused", !plausibleReport({ ...ok, at: "2025-10-01T00:00:00Z" }, now));
+}
+
+console.log("website reports are held, and can be taken back");
+{
+  const { db, sqlite } = freshDb();
+  const now = new Date("2026-10-15T00:00:00Z");
+  const web = (uid, pos, at, extra = {}) => ({ install: null, ...pos, at, source: "web", uid, activity: "cycling", ...extra });
+  const one = await addReport(db, web("web-aaaaaaa1", HERE, "2026-10-10T01:00:00Z"), RULES.mergeM, { hold: true, cancel: "code-1" });
+  check("a website report makes a held spot", one.created && one.spot.held === 1);
+  check("a held spot warns no Karoo", !isLive(one.spot, now, RULES));
+  check("a held spot is still on the map, flagged", isKnown(one.spot, now, RULES) && forMap(one.spot)[4] === 1);
+  const again = await addReport(db, web("web-aaaaaaa2", north(30), "2026-10-10T05:00:00Z"), RULES.mergeM, { hold: true, cancel: "code-2" });
+  check("a second website report the same day does not confirm it", again.spot.held === 1 && again.spot.reports === 2);
+  const later = await addReport(db, web("web-aaaaaaa3", north(20), "2026-10-12T05:00:00Z"), RULES.mergeM, { hold: true, cancel: "code-3" });
+  check("a website report on a later day confirms it", later.spot.held === 0 && isLive(later.spot, now, RULES));
+
+  const two = await addReport(db, web("web-bbbbbbb1", north(1000), "2026-10-10T01:00:00Z"), RULES.mergeM, { hold: true, cancel: "code-4" });
+  const tapped = await addReport(db, tap("tap-bbbbbbb2", north(1040), "2026-10-10T02:00:00Z"), RULES.mergeM);
+  check("a tap from a Karoo confirms a held spot", two.spot.held === 1 && tapped.spot.id === two.spot.id && tapped.spot.held === 0);
+
+  const three = await addReport(db, web("web-ccccccc1", north(2000), "2026-10-10T01:00:00Z"), RULES.mergeM, { hold: true, cancel: "code-5" });
+  await approveSpot(db, three.spot.id);
+  check("the admin can confirm a held spot", (await allSpots(db)).find((s) => s.id === three.spot.id).held === 0);
+
+  const free = await addReport(db, web("web-ddddddd1", north(3000), "2026-10-10T01:00:00Z"), RULES.mergeM, { hold: false, cancel: "code-6" });
+  check("with holding switched off a website report is live at once", free.spot.held === 0);
+  const karoo = await addReport(db, tap("tap-eeeeeee1", north(4000), "2026-10-10T01:00:00Z"), RULES.mergeM);
+  check("a Karoo's own new spot is never held", karoo.spot.held === 0);
+  const joined = await addReport(db, web("web-eeeeeee2", north(4020), "2026-10-10T03:00:00Z"), RULES.mergeM, { hold: true, cancel: "code-7" });
+  check("a website report joining a live spot does not hold it", joined.spot.held === 0 && joined.spot.reports === 2);
+
+  const soon = new Date(Date.now() + 60_000);
+  check("the wrong undo code removes nothing", (await removeReport(db, "web-ddddddd1", { cancel: "nope" }, 600_000, soon)) === "not-found");
+  check("an undo after the time allowed is refused", (await removeReport(db, "web-ddddddd1", { cancel: "code-6" }, 600_000, new Date(Date.now() + 3_600_000))) === "too-late");
+  check("the right undo code removes the report", (await removeReport(db, "web-ddddddd1", { cancel: "code-6" }, 600_000, soon)) === "removed");
+  check("a spot left with no reports is deleted", !(await allSpots(db)).some((s) => s.id === free.spot.id));
+  check("a Karoo takes its own tap back with its install id", (await removeReport(db, "tap-eeeeeee1", { install: "install-1" }, 86_400_000, soon)) === "removed");
+  const kept = (await allSpots(db)).find((s) => s.id === karoo.spot.id);
+  check("the spot keeps its other report, with the count and dates put right", kept && kept.reports === 1 && kept.first_report === "2026-10-10T03:00:00.000Z");
+  check("another Karoo's install id removes nothing", (await removeReport(db, "tap-bbbbbbb2", { install: "install-9" }, 86_400_000, soon)) === "not-found");
+  check("the undo code is kept with the report", sqlite.prepare("SELECT cancel FROM reports WHERE uid = 'web-aaaaaaa1'").get().cancel === "code-1");
+  check("the rule itself: only a Karoo tap or a later day confirms", confirmsHeld(one.spot, tap("x", HERE, "2026-10-10T02:00:00Z")) && !confirmsHeld(one.spot, web("y", HERE, "2026-10-10T09:00:00Z")));
 }
 
 console.log("limits and settings");
@@ -204,6 +246,7 @@ console.log("limits and settings");
   check("a month 13 is refused", settingProblem("season_months", "8,13") !== null);
   check("a tip link must be https", settingProblem("tip_url", "http://example.com") !== null && settingProblem("tip_url", "https://ko-fi.com/someone") === null);
   check("an unknown setting is refused", settingProblem("nonsense", "1") !== null);
+  check("holding website reports is on or off", settingProblem("hold_web_reports", "maybe") !== null && settingProblem("hold_web_reports", "off") === null);
   check("every default passes its own check", Object.entries(DEFAULTS).every(([k, v]) => settingProblem(k, v) === null));
 }
 

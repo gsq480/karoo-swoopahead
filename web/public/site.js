@@ -105,23 +105,34 @@ for (const q of questions) {
 }
 pick(questions[0]);
 
-// The live map, and reporting a swoop on it.
+// The live map, and reporting a swoop on it. A report takes three deliberate steps (the exact
+// place at street level, the day and what you were doing, then a review), so nobody sends one by
+// a slip of the thumb. A new spot from this page is held until it is confirmed.
 const count = part("map-count");
 const note = $("#report-note");
-let map, placing = false, marker = null, place = null, humanKey = null, humanToken = "";
+const form = $("#report-form");
+const STREET_ZOOM = 14;
+const UNDO_MS = 10 * 60_000;
+let map, placing = false, marker = null, place = null, humanKey = null, humanToken = "", lastSent = null, undoTimer = null;
 function geo(spots) {
-  return { type: "FeatureCollection", features: spots.map(([lat, lng, last, n]) => ({
-    type: "Feature", geometry: { type: "Point", coordinates: [lng, lat] }, properties: { last, n } })) };
+  return { type: "FeatureCollection", features: spots.map(([lat, lng, last, n, held]) => ({
+    type: "Feature", geometry: { type: "Point", coordinates: [lng, lat] }, properties: { last, n, held: held ? 1 : 0 } })) };
 }
 async function loadSpots(fresh) {
   const data = await (await fetch("/api/map" + (fresh ? "?t=" + Date.now() : ""))).json();
   humanKey = data.human_check_key;
-  const n = data.spots.length;
+  const waiting = data.spots.filter((s) => s[4]).length;
+  const n = data.spots.length - waiting;
+  const more = waiting ? ` ${waiting} more ${waiting === 1 ? "is" : "are"} waiting to be confirmed.` : "";
   count.textContent = n === 0
-    ? "No spots yet. The first report makes the first one."
-    : `${n.toLocaleString("en-AU")} ${n === 1 ? "spot" : "spots"} reported by riders${data.season ? "." : ", waiting for August."}`;
+    ? (waiting ? `No confirmed spots yet. ${waiting} ${waiting === 1 ? "is" : "are"} waiting to be confirmed.` : "No spots yet. The first report makes the first one.")
+    : `${n.toLocaleString("en-AU")} ${n === 1 ? "spot" : "spots"} reported by riders${data.season ? "." : ", waiting for August."}${more}`;
   if (data.tip_url) { const tip = $("#tip"); tip.href = data.tip_url; tip.hidden = false; }
   return data.spots;
+}
+async function refreshSpots() {
+  const spots = await loadSpots(true).catch(() => null);
+  if (spots && map && map.getSource("spots")) map.getSource("spots").setData(geo(spots));
 }
 async function startMap() {
   let spots = [];
@@ -129,28 +140,93 @@ async function startMap() {
   if (!window.maplibregl) return;
   map = new maplibregl.Map({ container: "themap", style: "https://tiles.openfreemap.org/styles/positron", center: [134.5, -27.5], zoom: 3.3, cooperativeGestures: true, attributionControl: { compact: true } });
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }));
+  map.addControl(new maplibregl.GeolocateControl({ fitBoundsOptions: { maxZoom: 15 } }));
   map.on("load", () => {
     map.addSource("spots", { type: "geojson", data: geo(spots) });
+    // A confirmed spot is a solid dot. One still waiting is hollow.
     map.addLayer({ id: "spots", type: "circle", source: "spots", paint: {
       "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 4, 13, 10],
-      "circle-color": "#fc5200", "circle-stroke-color": "#121412", "circle-stroke-width": 1.5 } });
+      "circle-color": ["case", ["==", ["get", "held"], 1], "#f3f5f1", "#fc5200"],
+      "circle-stroke-color": ["case", ["==", ["get", "held"], 1], "#fc5200", "#121412"],
+      "circle-stroke-width": ["case", ["==", ["get", "held"], 1], 2.5, 1.5] } });
     map.on("click", "spots", (e) => {
       if (placing) return;
       const p = e.features[0].properties;
       new maplibregl.Popup({ closeButton: false }).setLngLat(e.features[0].geometry.coordinates)
-        .setText(`${p.n} ${p.n === 1 ? "report" : "reports"}, last on ${p.last}`).addTo(map);
+        .setText(`${p.held ? "Not confirmed yet. " : ""}${p.n} ${p.n === 1 ? "report" : "reports"}, last on ${p.last}`).addTo(map);
     });
     map.on("click", (e) => {
       if (!placing) return;
-      place = e.lngLat;
-      marker?.remove();
-      marker = new maplibregl.Marker({ color: "#121412" }).setLngLat(place).addTo(map);
-      $("#confirm").hidden = false;
-      $("#confirm-text").textContent = "Report a swoop at this spot, today?";
-      showHumanCheck();
+      if (map.getZoom() < STREET_ZOOM) {
+        $("#rf-place-note").textContent = "Zoom in further first. The pin only drops once you can see the street.";
+        return;
+      }
+      setPlace(e.lngLat);
     });
   });
 }
+function setPlace(lngLat) {
+  place = lngLat;
+  if (!marker) {
+    marker = new maplibregl.Marker({ color: "#121412", draggable: true }).setLngLat(place).addTo(map);
+    marker.on("dragend", () => { place = marker.getLngLat(); });
+  } else marker.setLngLat(place);
+  $("#rf-place-note").textContent = "Pin placed. Drag it if it isn't quite right.";
+  $("#rf-place-next").disabled = false;
+}
+function show(step) {
+  for (const id of ["rf-place", "rf-facts", "rf-review"]) $("#" + id).hidden = id !== step;
+  placing = step === "rf-place";
+  $("#themap").classList.toggle("placing", placing);
+  if (marker) marker.setDraggable(placing);
+}
+function startReport() {
+  if (!map) { note.textContent = "The map has not loaded, so there is nowhere to put the pin yet."; return; }
+  note.textContent = "";
+  form.hidden = false; $("#report").hidden = true;
+  $("#rf-place-note").textContent = "Zoom in until you can see the street, then tap the exact spot. You can drag the pin.";
+  $("#rf-place-next").disabled = true;
+  const d = $("#rf-date"), today = new Date(), iso = (x) => new Date(x.getTime() - x.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+  d.max = iso(today); d.min = iso(new Date(today.getTime() - 14 * 86_400_000)); d.value = "";
+  show("rf-place");
+  $("#themap").scrollIntoView({ block: "center", behavior: "smooth" });
+}
+function stopReport() {
+  form.hidden = true; $("#report").hidden = false;
+  placing = false; $("#themap").classList.remove("placing");
+  marker?.remove(); marker = null; place = null;
+  form.reset(); $("#rf-date").hidden = true; $("#rf-facts-note").textContent = "";
+}
+function facts() {
+  const when = form.elements.when.value, activity = form.elements.activity.value;
+  let day = new Date();
+  if (when === "yesterday") day = new Date(Date.now() - 86_400_000);
+  if (when === "date") {
+    const v = $("#rf-date").value;
+    if (!v) return { problem: "Pick the day it happened." };
+    day = new Date(v + "T12:00:00");
+    if (v > $("#rf-date").max || v < $("#rf-date").min) return { problem: "Pick a day in the last two weeks." };
+  }
+  if (!activity) return { problem: "Say what you were doing." };
+  if (!$("#rf-true").checked) return { problem: "Tick the box to say it really happened." };
+  return { day, activity };
+}
+const DOING = { cycling: "cycling", walking: "walking", running: "running", other: "doing something else" };
+$("#report").addEventListener("click", startReport);
+form.querySelector("[data-cancel]").addEventListener("click", stopReport);
+form.addEventListener("submit", (e) => e.preventDefault());
+form.elements.when.forEach((r) => r.addEventListener("change", () => { $("#rf-date").hidden = form.elements.when.value !== "date"; }));
+$("#rf-place-next").addEventListener("click", () => { if (place) show("rf-facts"); });
+$("#rf-facts-back").addEventListener("click", () => show("rf-place"));
+$("#rf-review-back").addEventListener("click", () => show("rf-facts"));
+$("#rf-facts-next").addEventListener("click", () => {
+  const f = facts();
+  $("#rf-facts-note").textContent = f.problem || "";
+  if (f.problem) return;
+  $("#rf-summary").textContent = `A swoop on ${f.day.toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long" })}, while ${DOING[f.activity]}, at the pin on the map.`;
+  show("rf-review");
+  showHumanCheck();
+});
 function showHumanCheck() {
   if (!humanKey || $("#human").dataset.on) return;
   $("#human").dataset.on = "1";
@@ -159,45 +235,39 @@ function showHumanCheck() {
   s.onload = () => turnstile.render("#human", { sitekey: humanKey, callback: (t) => { humanToken = t; } });
   document.head.append(s);
 }
-function stopPlacing() {
-  placing = false;
-  $("#themap").classList.remove("placing");
-  $("#report").textContent = "Report a swoop";
-  $("#confirm").hidden = true;
-  marker?.remove(); marker = null; place = null;
-}
-$("#report").addEventListener("click", () => {
-  if (placing) return stopPlacing();
-  if (!map) { note.textContent = "The map has not loaded, so there is nowhere to tap yet."; return; }
-  placing = true;
-  note.textContent = "";
-  $("#themap").classList.add("placing");
-  $("#report").textContent = "Now tap the map where it swooped";
-  $("#themap").scrollIntoView({ block: "center", behavior: "smooth" });
-});
-$("#cancel").addEventListener("click", stopPlacing);
 $("#send").addEventListener("click", async () => {
-  if (!place) return;
+  const f = facts();
+  if (!place || f.problem) return;
   const send = $("#send");
   send.disabled = true; send.textContent = "Sending";
+  const uid = "web-" + (crypto.randomUUID ? crypto.randomUUID() : Date.now() + "-" + Math.random().toString(36).slice(2));
   try {
     const res = await fetch("/api/reports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
-      source: "web", lat: place.lat, lng: place.lng, at: new Date().toISOString(),
-      uid: "web-" + (crypto.randomUUID ? crypto.randomUUID() : Date.now() + "-" + Math.random().toString(36).slice(2)), human: humanToken }) });
+      source: "web", lat: place.lat, lng: place.lng, at: f.day.toISOString(), uid, activity: f.activity, confirmed: true, human: humanToken }) });
     const answer = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(
       res.status === 429 ? "That's the limit for one hour. Try again later." :
       res.status === 400 ? "That spot isn't in Australia, so it wasn't added." :
       res.status === 403 ? "The human check didn't pass. Try it again." : (answer.error || "It didn't go through."));
-    note.textContent = answer.created ? "Reported. That's a new spot on the map." : "Reported. It joined a spot that was already there.";
-    stopPlacing();
-    const spots = await loadSpots(true).catch(() => null);
-    if (spots && map.getSource("spots")) map.getSource("spots").setData(geo(spots));
+    note.textContent = answer.held
+      ? "Reported. It shows as a hollow dot until a second report or a check by hand confirms it."
+      : "Reported. It joined a spot that riders already know.";
+    lastSent = { uid, cancel: answer.cancel };
+    $("#undo").hidden = !answer.cancel;
+    clearTimeout(undoTimer); undoTimer = setTimeout(() => { $("#undo").hidden = true; }, UNDO_MS);
+    stopReport();
+    refreshSpots();
   } catch (e) {
     note.textContent = e.message;
   } finally {
     send.disabled = false; send.textContent = "Send the report";
   }
+});
+$("#undo").addEventListener("click", async () => {
+  if (!lastSent) return;
+  const res = await fetch("/api/reports/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(lastSent) }).catch(() => null);
+  if (res && res.ok) { note.textContent = "Report undone. It's off the map."; $("#undo").hidden = true; lastSent = null; refreshSpots(); }
+  else note.textContent = res && res.status === 410 ? "It's too late to undo that one here. Open an issue on GitHub and it will be removed." : "The undo didn't go through. Try again.";
 });
 // Start the map when its section is near, so the first screen never waits on it.
 new IntersectionObserver((entries, o) => { if (entries.some((e) => e.isIntersecting)) { o.disconnect(); startMap(); } }, { rootMargin: "600px" }).observe($("#map"));

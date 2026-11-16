@@ -54,7 +54,7 @@
   <div id="app" hidden>
     <section>
       <h2>Spots</h2>
-      <p class="dim">Orange is live or will be next season. Grey is quiet for this season. Black outline is removed. Click a spot to change it.</p>
+      <p class="dim">Solid orange is confirmed. An orange ring is a website report waiting for you to approve it. Grey is quiet for this season. Black outline is removed. Click a spot to change it.</p>
       <div class="row" style="margin-bottom: 8px">
         <button id="addmode">Add a spot</button>
         <label style="display: flex; gap: 6px; align-items: center; margin: 0"><input type="checkbox" id="showremoved"> Show removed spots</label>
@@ -67,6 +67,7 @@
         <div class="row">
           <input id="name" maxlength="60" placeholder="Name, such as the road" aria-label="Spot name">
           <button id="rename">Save name</button>
+          <button id="approve" class="main">Approve</button>
           <button id="quiet">Quiet this season</button>
           <button id="wake">Make active</button>
           <button id="remove">Remove</button>
@@ -91,6 +92,7 @@
 <script>
 const LABELS = {
   alerts: ["Warnings", "on or off. Off stops every Karoo warning."],
+  hold_web_reports: ["Hold website reports until confirmed", "on or off. On: a new spot from the website warns nobody until you approve it, a Karoo taps it, or a second website report arrives on a later day."],
   season_months: ["Swooping months", "Month numbers with commas between. 8,9,10,11 is August to November."],
   keep_seasons: ["Seasons a spot stays after its last report", "2 keeps last year's spots."],
   merge_m: ["Reports this close together are one spot (metres)", ""],
@@ -137,7 +139,7 @@ function makeMap() {
     map.addLayer({ id: "spots", type: "circle", source: "spots", paint: {
       "circle-radius": ["interpolate", ["linear"], ["zoom"], 3, 4, 12, 9],
       "circle-color": ["match", ["get", "kind"], "known", "#fc5200", "quiet", "#9a968c", "old", "#d9c9b8", "#ffffff"],
-      "circle-stroke-color": "#1d1d1b", "circle-stroke-width": ["match", ["get", "kind"], "removed", 2, 1],
+      "circle-stroke-color": ["match", ["get", "kind"], "held", "#fc5200", "#1d1d1b"], "circle-stroke-width": ["match", ["get", "kind"], "removed", 2, "held", 3, 1],
     } });
     map.on("click", "spots", (e) => { if (!adding) pick(Number(e.features[0].properties.id)); });
     map.on("click", async (e) => {
@@ -152,7 +154,7 @@ function makeMap() {
   });
 }
 
-function kind(s) { return s.status === "removed" ? "removed" : s.status === "quiet" ? "quiet" : s.known ? "known" : "old"; }
+function kind(s) { return s.status === "removed" ? "removed" : s.status === "quiet" ? "quiet" : s.held ? "held" : s.known ? "known" : "old"; }
 function shown() { return state.spots.filter((s) => $("showremoved").checked || s.status !== "removed"); }
 function geo() {
   return { type: "FeatureCollection", features: shown().map((s) => ({
@@ -168,7 +170,8 @@ function fit() {
 function draw() {
   if (map && map.getSource("spots")) map.getSource("spots").setData(geo());
   const live = state.spots.filter((s) => s.live).length, all = state.spots.filter((s) => s.status !== "removed").length;
-  $("count").textContent = all + " spots, " + live + " warning Karoos today";
+  const held = state.spots.filter((s) => s.held && s.status !== "removed").length;
+  $("count").textContent = all + " spots, " + live + " warning Karoos today" + (held ? ", " + held + " waiting for approval" : "");
   $("season").textContent = state.season ? "In season" : "Out of season";
   if (picked) pick(picked);
 }
@@ -179,11 +182,12 @@ function pick(id) {
   if (!s) return;
   $("pickedtext").textContent = "Spot " + s.id + ": " + (s.name || "no name") + ". " + s.reports + (s.reports === 1 ? " report" : " reports") +
     ", last " + s.last_report.slice(0, 10) + ". Status: " + s.status +
-    (s.status === "removed" ? "." : s.status === "quiet" ? " for this season." : s.live ? ", warning today." : s.known ? ", on the map, no warnings outside the season." : ", too old for the map.");
+    (s.status === "removed" ? "." : s.held ? ", held: a website report waiting to be confirmed. No Karoo is warned." : s.status === "quiet" ? " for this season." : s.live ? ", warning today." : s.known ? ", on the map, no warnings outside the season." : ", too old for the map.");
   $("name").value = s.name || "";
   $("wake").hidden = s.status === "active";
   $("quiet").hidden = s.status !== "active";
   $("remove").hidden = s.status === "removed";
+  $("approve").hidden = !s.held || s.status === "removed";
 }
 function setAdding(on) {
   adding = on;
@@ -208,7 +212,7 @@ function drawSettings() {
     const wrap = document.createElement("label");
     const title = document.createElement("span"); title.textContent = label;
     let input;
-    if (key === "alerts") {
+    if (key === "alerts" || key === "hold_web_reports") {
       input = document.createElement("select");
       for (const v of ["on", "off"]) { const o = document.createElement("option"); o.value = v; o.textContent = v; input.append(o); }
     } else {
@@ -247,14 +251,14 @@ $("settings").addEventListener("submit", async (e) => {
 
 function drawReports() {
   const t = $("reports");
-  t.innerHTML = "<tr><th>Received</th><th>Happened</th><th>From</th><th>Sender</th><th>Spot</th><th>Place</th></tr>";
+  t.innerHTML = "<tr><th>Received</th><th>Happened</th><th>From</th><th>Doing</th><th>Sender</th><th>Spot</th><th>Place</th></tr>";
   for (const r of state.reports) {
     const tr = document.createElement("tr");
-    const cells = [r.created_at.replace("T", " ").slice(0, 16), r.at.replace("T", " ").slice(0, 16), r.source, r.install || "", r.spot_id,
+    const cells = [r.created_at.replace("T", " ").slice(0, 16), r.at.replace("T", " ").slice(0, 16), r.source, r.activity || "", r.install || "", r.spot_id,
       r.lat.toFixed(4) + ", " + r.lng.toFixed(4)];
     cells.forEach((c, i) => {
       const td = document.createElement("td");
-      if (i === 4) { const b = document.createElement("button"); b.textContent = c; b.onclick = () => { const s = state.spots.find((x) => x.id === r.spot_id); if (s) { map.flyTo({ center: [s.lng, s.lat], zoom: 14 }); pick(s.id); } }; td.append(b); }
+      if (i === 5) { const b = document.createElement("button"); b.textContent = c; b.onclick = () => { const s = state.spots.find((x) => x.id === r.spot_id); if (s) { map.flyTo({ center: [s.lng, s.lat], zoom: 14 }); pick(s.id); } }; td.append(b); }
       else td.textContent = c;
       tr.append(td);
     });
@@ -266,6 +270,7 @@ $("gateform").addEventListener("submit", (e) => { e.preventDefault(); pass = $("
 $("signout").onclick = () => { sessionStorage.removeItem("swoop-admin"); location.reload(); };
 $("addmode").onclick = () => setAdding(!adding);
 $("showremoved").onchange = () => draw();
+$("approve").onclick = () => change({ action: "approve", id: picked }, "Approved. Karoos nearby are warned from their next sync.");
 $("rename").onclick = () => change({ action: "rename", id: picked, name: $("name").value }, "Name saved.");
 $("quiet").onclick = () => change({ action: "quiet", id: picked }, "Quiet for this season. A new report wakes it.");
 $("wake").onclick = () => change({ action: "wake", id: picked }, "Active again.");

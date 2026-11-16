@@ -14,7 +14,8 @@ CREATE TABLE IF NOT EXISTS spots (
   first_report TEXT NOT NULL,      -- ISO UTC
   last_report  TEXT NOT NULL,      -- ISO UTC
   reports      INTEGER NOT NULL DEFAULT 1,
-  created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+  created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  held         INTEGER NOT NULL DEFAULT 0   -- 1: made by a website report and not yet confirmed; no Karoo is warned
 );
 CREATE INDEX IF NOT EXISTS idx_spots_lat ON spots(lat);
 
@@ -31,7 +32,9 @@ CREATE TABLE IF NOT EXISTS reports (
   at          TEXT NOT NULL,       -- ISO UTC, when it happened
   source      TEXT NOT NULL CHECK (source IN ('karoo', 'web', 'hand', 'datavic')),
   uid         TEXT NOT NULL UNIQUE,
-  created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+  created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  activity    TEXT,                -- what the reporter was doing: cycling, walking, running or other
+  cancel      TEXT                 -- a website report's undo code, given only to the browser that sent it
 );
 CREATE INDEX IF NOT EXISTS idx_reports_spot ON reports(spot_id, at);
 CREATE INDEX IF NOT EXISTS idx_reports_created ON reports(created_at);

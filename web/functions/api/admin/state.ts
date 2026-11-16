@@ -12,7 +12,7 @@ export async function onRequestGet({ env }: any): Promise<Response> {
     .sort((a, b) => b.last_report.localeCompare(a.last_report))
     .map((s) => ({ ...s, known: isKnown(s, now, rules), live: isLive(s, now, rules) }));
   const reports = (await env.DB.prepare(
-    `SELECT id, spot_id, lat, lng, at, source, substr(install, 1, 6) AS install, created_at
+    `SELECT id, spot_id, lat, lng, at, source, activity, substr(install, 1, 6) AS install, created_at
        FROM reports ORDER BY created_at DESC, id DESC LIMIT 200`,
   ).all()).results;
   return json({ season: inSeason(now, rules), settings, defaults: DEFAULTS, spots, reports });

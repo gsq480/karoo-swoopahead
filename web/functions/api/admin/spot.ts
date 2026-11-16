@@ -1,5 +1,5 @@
 import { json } from "../../../lib/http.ts";
-import { addReport, quietSpot, readSettings, removeSpot, renameSpot, rulesFrom, spotById, wakeSpot } from "../../../lib/store.ts";
+import { addReport, approveSpot, quietSpot, readSettings, removeSpot, renameSpot, rulesFrom, spotById, wakeSpot } from "../../../lib/store.ts";
 import { inAustralia } from "../../../lib/swoop-core.ts";
 
 // Change one spot, or add one by hand.
@@ -26,6 +26,7 @@ export async function onRequestPost({ request, env }: any): Promise<Response> {
   if (!Number.isInteger(id) || !(await spotById(env.DB, id))) return json({ error: "no such spot" }, 404);
   if (action === "quiet") await quietSpot(env.DB, id, new Date());
   else if (action === "wake") await wakeSpot(env.DB, id);
+  else if (action === "approve") await approveSpot(env.DB, id);
   else if (action === "remove") await removeSpot(env.DB, id);
   else if (action === "rename") await renameSpot(env.DB, id, String(body.name ?? ""));
   else return json({ error: "no such action" }, 400);

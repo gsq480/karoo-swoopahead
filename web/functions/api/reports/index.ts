@@ -1,6 +1,6 @@
-import { humanCheckPassed, json, senderKey } from "../../lib/http.ts";
-import { addReport, readSettings, rulesFrom, withinLimit } from "../../lib/store.ts";
-import { plausibleReport, type SwoopReport } from "../../lib/swoop-core.ts";
+import { humanCheckPassed, json, senderKey } from "../../../lib/http.ts";
+import { addReport, readSettings, rulesFrom, withinLimit } from "../../../lib/store.ts";
+import { ACTIVITIES, plausibleReport, type SwoopReport } from "../../../lib/swoop-core.ts";
 
 // A swoop, from a tap on a Karoo or a pin on the website. No sign-in: what
 // keeps it honest is a limit on reports per hour from one sender, the rule
@@ -22,9 +22,12 @@ export async function onRequestPost({ request, env }: any): Promise<Response> {
     at: String(body?.at ?? ""),
     source: web ? "web" : "karoo",
     uid: String(body?.uid ?? ""),
+    activity: ACTIVITIES.includes(body?.activity) ? body.activity : null,
   };
   const now = new Date();
   if (!plausibleReport(report, now)) return json({ error: "not a recent report in Australia" }, 400);
+  // The website's form asks the reporter to say it really happened, and what they were doing.
+  if (web && (body?.confirmed !== true || !report.activity)) return json({ error: "the form is not complete" }, 400);
 
   const settings = await readSettings(env.DB);
   const sender = await senderKey(request, env, now);
@@ -34,6 +37,10 @@ export async function onRequestPost({ request, env }: any): Promise<Response> {
   if (web && env.TURNSTILE_SECRET && !(await humanCheckPassed(String(body?.human ?? ""), env.TURNSTILE_SECRET, request))) {
     return json({ error: "the human check did not pass" }, 403);
   }
-  const { spot, created, repeat } = await addReport(env.DB, report, rulesFrom(settings).mergeM);
-  return json({ ok: true, spot: spot.id, created, repeat });
+  // A website report gets an undo code, and a spot it makes is held until confirmed.
+  const cancel = web ? crypto.randomUUID() : null;
+  const { spot, created, repeat } = await addReport(env.DB, report, rulesFrom(settings).mergeM, {
+    hold: web && settings.hold_web_reports === "on", cancel,
+  });
+  return json({ ok: true, spot: spot.id, created, repeat, held: !!spot.held, ...(web && !repeat ? { cancel } : {}) });
 }

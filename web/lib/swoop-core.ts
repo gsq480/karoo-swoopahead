@@ -19,6 +19,7 @@ export type SwoopSpot = {
   first_report: string;
   last_report: string;
   reports: number;
+  held: number; // 1 while a website report waits to be confirmed
 };
 
 export type SwoopReport = {
@@ -30,7 +31,10 @@ export type SwoopReport = {
   source: SwoopSource;
   uid: string;
   name?: string | null;
+  activity?: string | null;
 };
+
+export const ACTIVITIES = ["cycling", "walking", "running", "other"];
 
 export type SwoopRules = {
   alerts: boolean;
@@ -82,9 +86,19 @@ export function isKnown(spot: SwoopSpot, now: Date, rules: SwoopRules): boolean 
   return year - localYearMonth(spot.last_report).year < rules.keepSeasons;
 }
 
-// Live means the Karoo warns for it: known, and in season.
+// Live means the Karoo warns for it: known, in season, and not held waiting
+// to be confirmed.
 export function isLive(spot: SwoopSpot, now: Date, rules: SwoopRules): boolean {
-  return inSeason(now, rules) && isKnown(spot, now, rules);
+  return !spot.held && inSeason(now, rules) && isKnown(spot, now, rules);
+}
+
+// A spot made by a website report is held: it shows on the map as unconfirmed
+// and warns nobody. It is confirmed by the admin, by a tap from a Karoo, or by
+// a website report on a later day. A second website report on the same day does
+// not count, because it is most likely the same person again.
+export function confirmsHeld(spot: SwoopSpot, report: SwoopReport): boolean {
+  if (report.source !== "web") return true;
+  return localDay(report.at) > localDay(spot.last_report);
 }
 
 // Live spots nearest a position first, capped. With no position, the newest.
@@ -135,7 +149,8 @@ export function forKaroo(s: SwoopSpot): { id: number; lat: number; lng: number; 
   };
 }
 
-// What the public map is sent: position to about 10 m, the day, the count.
-export function forMap(s: SwoopSpot): [number, number, string, number] {
-  return [Math.round(s.lat * 1e4) / 1e4, Math.round(s.lng * 1e4) / 1e4, localDay(s.last_report), s.reports];
+// What the public map is sent: position to about 10 m, the day, the count,
+// and 1 if the spot is still waiting to be confirmed.
+export function forMap(s: SwoopSpot): [number, number, string, number, number] {
+  return [Math.round(s.lat * 1e4) / 1e4, Math.round(s.lng * 1e4) / 1e4, localDay(s.last_report), s.reports, s.held ? 1 : 0];
 }

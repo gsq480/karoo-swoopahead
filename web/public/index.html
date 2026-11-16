@@ -62,15 +62,45 @@
   <div class="map-words">
     <h2 class="reveal">Where they swoop</h2>
     <p class="reveal" data-part="map-count">Loading the spots riders have reported.</p>
-    <p class="reveal">Got swooped off the bike, or on a walk? Add the spot here. A report carries a place and a time, and nothing about you.</p>
+    <p class="reveal">Got swooped off the bike, or on a walk? Add the spot. A report carries a place, a day and what you were doing, and nothing about you.</p>
     <button class="button reveal" type="button" id="report">Report a swoop</button>
-    <div class="confirm" id="confirm" hidden>
-      <p id="confirm-text">Report a swoop at this spot, today?</p>
-      <div id="human"></div>
-      <button class="button" type="button" id="send">Send the report</button>
-      <button class="button quiet" type="button" id="cancel">Cancel</button>
-    </div>
+
+    <form class="report" id="report-form" hidden novalidate>
+      <fieldset id="rf-place">
+        <legend>Where did it swoop?</legend>
+        <p id="rf-place-note">Zoom in until you can see the street, then tap the exact spot. You can drag the pin.</p>
+        <button class="button" type="button" id="rf-place-next" disabled>Use this spot</button>
+        <button class="button quiet" type="button" data-cancel>Cancel</button>
+      </fieldset>
+      <fieldset id="rf-facts" hidden>
+        <legend>When, and what were you doing?</legend>
+        <div class="choices" role="radiogroup" aria-label="When it happened">
+          <label><input type="radio" name="when" value="today" id="rf-today" checked> Today</label>
+          <label><input type="radio" name="when" value="yesterday" id="rf-yesterday"> Yesterday</label>
+          <label><input type="radio" name="when" value="date" id="rf-other"> Another day</label>
+          <input type="date" id="rf-date" aria-label="The day it happened" hidden>
+        </div>
+        <div class="choices" role="radiogroup" aria-label="What you were doing">
+          <label><input type="radio" name="activity" value="cycling" id="rf-cycling"> Cycling</label>
+          <label><input type="radio" name="activity" value="walking" id="rf-walking"> Walking</label>
+          <label><input type="radio" name="activity" value="running" id="rf-running"> Running</label>
+          <label><input type="radio" name="activity" value="other" id="rf-else"> Something else</label>
+        </div>
+        <label class="tick"><input type="checkbox" id="rf-true"> This happened to me, or I saw it happen.</label>
+        <p class="problem" id="rf-facts-note" role="alert"></p>
+        <button class="button" type="button" id="rf-facts-next">Review</button>
+        <button class="button quiet" type="button" id="rf-facts-back">Go back</button>
+      </fieldset>
+      <fieldset id="rf-review" hidden>
+        <legend>Check it, then send</legend>
+        <p id="rf-summary"></p>
+        <div id="human"></div>
+        <button class="button" type="button" id="send">Send the report</button>
+        <button class="button quiet" type="button" id="rf-review-back">Go back</button>
+      </fieldset>
+    </form>
     <p id="report-note" role="status"></p>
+    <button class="button quiet" type="button" id="undo" hidden>Undo this report</button>
   </div>
   <div class="map-frame reveal"><div id="themap" aria-label="Map of reported magpie swooping spots"></div></div>
 </section>
