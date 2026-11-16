@@ -8,105 +8,148 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-<style>
-  /* Three colours, three jobs. Change the accent here and it changes everywhere. */
-  :root {
-    --ground: #eef0ec;   /* a magpie's white, a touch cool */
-    --second: #121412;   /* a magpie's black: type and solid blocks */
-    --accent: #fc5200;   /* the Karoo warning's own orange */
-    --soft: #5c615b;     /* secondary notes only */
-    --step-small: clamp(0.8125rem, 0.79rem + 0.1vw, 0.875rem);
-    --step-body: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem);
-    --step-lead: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
-    --step-display: clamp(2.5rem, 3.6vw, 3.75rem);
-    --margin: 32px;
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--ground); color: var(--second); font: 400 var(--step-body)/1.55 "Work Sans", system-ui, sans-serif; }
-  a { color: inherit; }
-  .bar { display: flex; justify-content: space-between; align-items: center; padding: 22px var(--margin); font-size: 15px; }
-  .mark { font-weight: 500; text-decoration: none; letter-spacing: -0.01em; }
-  .mark i { display: inline-block; width: 0.5em; height: 0.5em; border-radius: 50%; background: var(--accent); margin-left: 0.18em; }
-  .bar nav { display: flex; gap: 28px; align-items: center; }
-  .bar nav a { text-decoration: none; }
-  .button { display: inline-block; background: var(--accent); color: #000; text-decoration: none; font-weight: 500; padding: 11px 18px; border-radius: 999px; }
-  .bar .button { padding: 8px 16px; background: var(--second); color: var(--ground); }
-  .button:focus-visible, a:focus-visible { outline: 3px solid var(--second); outline-offset: 3px; }
-
-  .hero { position: relative; min-height: calc(100svh - 70px); display: grid; grid-template-columns: 1fr 35vw 1fr; column-gap: 28px; align-items: center; padding: 0 var(--margin); overflow: hidden; }
-  h1 { display: contents; font-weight: 500; }
-  h1 span { font-size: var(--step-display); line-height: 1; letter-spacing: -0.035em; font-weight: 500; }
-  .first { grid-column: 1; grid-row: 1; justify-self: start; align-self: center; }
-  .second { grid-column: 3; grid-row: 1; justify-self: end; align-self: center; text-align: right; }
-  .second b { font-weight: 500; color: var(--accent); }
-  .reel { grid-column: 2; grid-row: 1; display: grid; gap: 24px; align-self: center; }
-  .frame { position: relative; aspect-ratio: 16 / 9; border-radius: 4px; overflow: hidden; background: var(--second); }
-  .frame img.photo { width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; filter: grayscale(1) contrast(1.08); display: block; }
-  .sliver { height: 60px; }
-  .sliver.before { align-self: end; }
-  .sliver .frame { height: 100%; aspect-ratio: auto; }
-  .lede { grid-column: 1; grid-row: 1; align-self: end; max-width: 30ch; margin: 0 0 9svh; }
-  .lede p { margin: 0 0 22px; }
-  .facts { grid-column: 3; grid-row: 1; align-self: end; justify-self: end; text-align: right; margin: 0 0 9svh; color: var(--soft); font-size: 15px; }
-
-  /* The Karoo's own warning, at its own proportions. */
-  [data-ui].alert { position: absolute; left: 0; right: 0; bottom: 0; background: var(--accent); color: #000; display: flex; align-items: center; gap: 0.9em; padding: 0.8em 1em; font-size: clamp(11px, 1.05vw, 17px); }
-  [data-ui].alert img { width: 2.6em; height: 2.6em; }
-  [data-ui].alert strong { display: block; font-weight: 500; font-size: 1.5em; line-height: 1.1; letter-spacing: -0.01em; }
-  [data-ui].alert span { font-variant-numeric: tabular-nums; }
-  [data-ui].field { height: 100%; background: #000; color: #fff; display: flex; align-items: center; gap: 0.8em; padding: 0 1em; font-size: clamp(11px, 1.05vw, 17px); white-space: nowrap; overflow: hidden; }
-  [data-ui].field img { width: 2.2em; height: 2.2em; filter: invert(1); }
-  [data-ui].field strong { font-weight: 500; font-size: 1.6em; margin-right: 0.6em; }
-  [data-ui].field.marked { background: var(--accent); color: #000; }
-  [data-ui].field.marked img { filter: none; }
-
-  @media (max-width: 800px) {
-    :root { --margin: 16px; }
-    .bar nav a:not(.button) { display: none; }
-    .hero { display: flex; flex-direction: column; align-items: stretch; gap: 14px; padding-bottom: 28px; min-height: 0; }
-    h1 { display: block; }
-    h1 span { display: block; font-size: 9vw; }
-    .second { text-align: right; }
-    .reel { order: 2; gap: 12px; }
-    .frame { aspect-ratio: 4 / 3; }
-    .sliver { height: 28px; }
-    .first { order: 1; } .second { order: 3; }
-    .lede { order: 4; margin: 10px 0 0; max-width: none; }
-    .facts { order: 5; text-align: left; justify-self: start; margin: 0; }
-    [data-ui].alert, [data-ui].field { font-size: 3.4vw; }
-  }
-</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.css">
+<link rel="stylesheet" href="site.css">
 </head>
 <body>
-<header class="bar">
-  <a class="mark" href="/">Swoop Ahead<i></i></a>
-  <nav>
-    <a href="#map">The map</a>
-    <a href="#how">How it works</a>
-    <a href="#questions">Questions</a>
-    <a class="button" href="https://github.com/gsq480/karoo-swoopahead/releases/latest">Install</a>
-  </nav>
-</header>
-
 <main>
-<section class="hero">
-  <h1><span class="first">Warned before</span> <span class="second">the <b>swoop.</b></span></h1>
 
-  <div class="reel" aria-label="What the Karoo shows">
-    <div class="sliver before"><div class="frame"><div class="field" data-ui><img src="assets/magpie.svg" alt=""><strong>400 m</strong> Magpie · tap to mark a swoop</div></div></div>
-    <div class="frame">
-      <img class="photo" src="assets/australian-magpie-full-glide.jpg" width="1920" height="1440" alt="An Australian magpie gliding straight at the camera, wings spread">
-      <div class="alert" data-ui><img src="assets/magpie.svg" alt=""><div><strong>Magpie ahead</strong><span>180 m · Northbourne Ave · last 3 Nov</span></div></div>
+<section class="hero" id="top">
+  <div class="stage" data-step="0">
+    <header class="bar">
+      <a class="mark" href="#top">Swoop Ahead<i></i></a>
+      <nav aria-label="Sections">
+        <a href="#map">The map</a>
+        <a href="#how">How it works</a>
+        <a href="#install">Install</a>
+        <a href="#questions">Questions</a>
+        <a class="button dark" href="https://github.com/gsq480/karoo-swoopahead/releases/latest">Install</a>
+      </nav>
+    </header>
+
+    <h1><span class="first">Warned before</span> <span class="second">the <b>swoop.</b></span></h1>
+
+    <div class="reel" role="img" aria-label="What the Karoo shows on the way past a swooping magpie: the distance, then an orange Magpie ahead warning, then clear">
+      <div class="strip"><div class="field" data-ui data-part="before"><img src="assets/magpie.svg" alt=""><strong>400 m</strong><span>Magpie · tap to mark a swoop</span></div></div>
+      <div class="frame">
+        <img class="photo" src="assets/australian-magpie-full-glide.jpg" width="1920" height="1440" alt="An Australian magpie gliding straight at the camera, wings spread">
+        <div class="alert" data-ui data-part="alert"><div><strong>Magpie ahead</strong><span>250 m · Northbourne Ave · last 3 Nov</span></div><img src="assets/magpie.svg" alt=""><i></i></div>
+      </div>
+      <div class="strip"><div class="field" data-ui data-part="after"><img src="assets/magpie.svg" alt=""><strong>CLEAR</strong><span>Magpies · tap to mark a swoop</span></div></div>
     </div>
-    <div class="sliver"><div class="frame"><div class="field" data-ui><img src="assets/magpie.svg" alt=""><strong>CLEAR</strong> Magpies · tap to mark a swoop</div></div></div>
-  </div>
 
-  <div class="lede">
-    <p>Swoop Ahead is a free extension for the Hammerhead Karoo. It beeps about 250 m before a known magpie swooping spot.</p>
-    <a class="button" href="https://github.com/gsq480/karoo-swoopahead/releases/latest">Install on your Karoo</a>
+    <div class="lede">
+      <p>Swoop Ahead is a free extension for the Hammerhead Karoo. It beeps about 250 m before a known magpie swooping spot.</p>
+      <a class="button" href="https://github.com/gsq480/karoo-swoopahead/releases/latest">Install on your Karoo</a>
+    </div>
+    <p class="facts" data-part="caption">Free · no account · August to November</p>
   </div>
-  <p class="facts">Free · no account · August to November</p>
 </section>
+
+<section class="tap" id="tap">
+  <div class="tap-words">
+    <h2 class="reveal" data-part="tap-heading">Tap when it swoops.</h2>
+    <p class="reveal">One tap on the Magpie field marks the spot. Your Karoo keeps it, and the shared map gets it the next time there's a link.</p>
+  </div>
+  <button class="bigfield reveal" data-ui type="button" aria-pressed="false" aria-label="The Magpie field. Tap it to see what marking a swoop looks like.">
+    <img src="assets/magpie.svg" alt="">
+    <span class="big" data-part="tap-big">180 m</span>
+    <span class="small" data-part="tap-small">Magpie · tap to mark a swoop</span>
+  </button>
+</section>
+
+<section class="map" id="map">
+  <div class="map-words">
+    <h2 class="reveal">Where they swoop</h2>
+    <p class="reveal" data-part="map-count">Loading the spots riders have reported.</p>
+    <p class="reveal">Got swooped off the bike, or on a walk? Add the spot here. A report carries a place and a time, and nothing about you.</p>
+    <button class="button reveal" type="button" id="report">Report a swoop</button>
+    <div class="confirm" id="confirm" hidden>
+      <p id="confirm-text">Report a swoop at this spot, today?</p>
+      <div id="human"></div>
+      <button class="button" type="button" id="send">Send the report</button>
+      <button class="button quiet" type="button" id="cancel">Cancel</button>
+    </div>
+    <p id="report-note" role="status"></p>
+  </div>
+  <div class="map-frame reveal"><div id="themap" aria-label="Map of reported magpie swooping spots"></div></div>
+</section>
+
+<section class="how" id="how">
+  <div class="how-clause reveal">
+    <h2 data-part="how-clause">First, a magpie swoops a rider.</h2>
+  </div>
+  <div class="how-fragment reveal" aria-live="polite">
+    <div class="phone-of-karoo" data-ui data-part="how-fragment"></div>
+  </div>
+  <div class="how-slider reveal">
+    <input type="range" id="stage" min="0" max="3" step="1" value="0" aria-label="The four stages, from the swoop to your warning">
+    <ol class="stage-names">
+      <li class="on">The swoop</li><li>The tap</li><li>The map</li><li>Your warning</li>
+    </ol>
+  </div>
+</section>
+
+<section class="install" id="install">
+  <div class="install-words reveal">
+    <h2>On your Karoo in three steps</h2>
+    <p>It works on a Karoo 3 from your phone. A Karoo 2 needs a cable: download the file and run <code>adb install swoopahead.apk</code>.</p>
+    <a class="button" href="https://github.com/gsq480/karoo-swoopahead/releases/latest">Open the latest release</a>
+    <figure class="reveal">
+      <img src="assets/australian-magpies-swooping-bird-alert-sign-in.jpg" width="1275" height="1700" loading="lazy" decoding="async" alt="A council sign on a pole headed Swooping Bird Alert, with a photograph of a magpie">
+      <figcaption>A council sign in Brisbane, 2022. It only helps if you ride past it.</figcaption>
+    </figure>
+  </div>
+  <ol class="steps">
+    <li class="reveal"><strong>Share the file to the Hammerhead app.</strong> On your phone, open the latest release, press and hold <code>swoopahead.apk</code>, choose Share, then the Hammerhead app.</li>
+    <li class="reveal"><strong>Tap Install on the Karoo.</strong> Then open Swoop Ahead once. It tells you what it sends and lets you turn sharing off.</li>
+    <li class="reveal"><strong>Add the Magpie field to a ride page.</strong> Profiles, your profile, Data Pages, a page, Add Field, SWOOP AHEAD, Magpie. The warning works without the field. The field is how you mark a swoop.</li>
+  </ol>
+</section>
+
+<section class="questions" id="questions">
+  <div class="q-list reveal">
+    <h2>Questions</h2>
+    <ul id="qs">
+      <li><button type="button" aria-controls="answer" data-a="When you mark a swoop: its place, the time, your direction of travel, and a random id made once for your Karoo, which is never shown to anyone. To fetch the spots near you: your position rounded to about 10 km. No name, no account, no ride.">What does it send?</button></li>
+      <li><button type="button" aria-controls="answer" data-a="Nothing. It's free and the code is open under the Apache 2.0 licence. There's no account to make.">What does it cost?</button></li>
+      <li><button type="button" aria-controls="answer" data-a="The Karoo 3, installed from your phone. It should also run on a Karoo 2 over a cable, but that hasn't been tested yet.">Which Karoos does it work on?</button></li>
+      <li><button type="button" aria-controls="answer" data-a="Anyone can report, so a spot can be wrong. Wrong spots get removed: open an issue on GitHub and say where. On your own Karoo, Remove my last mark undoes a slip of the thumb.">What if a spot is wrong?</button></li>
+      <li><button type="button" aria-controls="answer" data-a="That's when magpies nest and swoop across most of Australia, with September the peak. Outside those months nothing warns, and the spots wait for next season.">Why only August to November?</button></li>
+      <li><button type="button" aria-controls="answer" data-a="From riders tapping the Magpie field, and from reports made on this page. Reports within 150 m of each other are one spot. A spot stays for two seasons after its last report.">Where do the spots come from?</button></li>
+      <li><button type="button" aria-controls="answer" data-a="No. Magpie Alert is a separate, long-running website. Swoop Ahead isn't connected to it and uses none of its data.">Is this Magpie Alert?</button></li>
+      <li><button type="button" aria-controls="answer" data-a="It turns off on the app's screen: Send my marks to the shared map. Your marks then stay on your Karoo, and it still warns you for them.">Can I keep my marks to myself?</button></li>
+    </ul>
+  </div>
+  <div class="answer-pane reveal"><p class="answer" id="answer" aria-live="polite"></p></div>
+</section>
+
+<section class="close" id="close">
+  <div class="close-words reveal">
+    <h2>Or keep the cable ties</h2>
+    <p>Swoop Ahead is free, it takes two minutes, and the first swoop you mark warns every rider behind you.</p>
+    <a class="button" href="https://github.com/gsq480/karoo-swoopahead/releases/latest">Install on your Karoo</a>
+    <a class="plain" href="https://github.com/gsq480/karoo-swoopahead">Read the code</a>
+  </div>
+  <figure class="reveal">
+    <img src="assets/bicycle-helmet-with-zip-ties.jpg" width="998" height="1500" loading="lazy" decoding="async" alt="A bicycle helmet with long cable ties sticking up from its vents">
+    <figcaption>The old defence: cable ties on the helmet.</figcaption>
+  </figure>
+</section>
+
 </main>
+
+<footer class="foot reveal">
+  <span>A magpie warning for the Karoo</span>
+  <span class="foot-links">
+    <a href="https://github.com/gsq480/karoo-swoopahead">GitHub</a>
+    <a href="https://github.com/gsq480/karoo-roadahead">Road Ahead</a>
+    <a href="#" id="tip" hidden>Leave a tip</a>
+  </span>
+  <span class="credit">Photographs from Wikimedia Commons, shown in black and white: "Australian Magpie… Full Glide" and "Australian Magpie, The Bike Rider’s Nemesis" by birdsaspoetry.com, <a href="https://creativecommons.org/licenses/by/2.0/">CC BY 2.0</a>; "Bicycle helmet with zip-ties" by Bidgee, <a href="https://creativecommons.org/licenses/by-sa/3.0/">CC BY-SA 3.0</a>; "Australian Magpies swooping bird alert sign in Brisbane, 2022" by Kgbo, <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>. Map: OpenFreeMap, OpenStreetMap contributors. Not made or endorsed by Hammerhead or Magpie Alert.</span>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.js" defer></script>
+<script src="site.js" defer></script>
 </body>
 </html>

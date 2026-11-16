@@ -105,8 +105,10 @@ adb logcat -s SwoopAhead
 
 ### The website and service (`web/`)
 
-A Cloudflare Pages project: the site in `web/public/`, the service in `web/functions/`, and a D1
-database. It needs `wrangler` and nothing else.
+A Cloudflare Pages project: the site in `web/public/` (plain HTML, `site.css` and `site.js`, no
+build step), the service in `web/functions/`, and a D1 database. It needs `wrangler` and nothing
+else. The three colours are the first three lines of `site.css`. Photograph credits are in
+`web/public/assets/credits.json` and in the page's footer.
 
 ```
 node web/tools/check.mjs                                   # the rules and the storage, 60 checks
