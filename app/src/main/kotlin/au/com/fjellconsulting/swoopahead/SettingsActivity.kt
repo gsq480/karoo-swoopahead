@@ -50,7 +50,8 @@ class SettingsActivity : Activity() {
 
         column.addView(text("Swoop Ahead", 26f, bold = true))
         column.addView(text(
-            "Warns you about 250 m before a magpie swooping spot. Tap the Magpie field on a ride to mark a swoop.", 16f))
+            "Warns you about 250 m before a magpie swooping spot. Tap the Magpie field on a ride to mark a swoop. " +
+                "Tapped by mistake? Tap it again within 15 seconds and the mark is cancelled.", 16f))
 
         column.addView(heading("What it sends"))
         column.addView(text(
@@ -91,10 +92,10 @@ class SettingsActivity : Activity() {
         column.addView(heading("My marks"))
         column.addView(button("Remove my last mark") {
             val removed = app.swoops.removeLastMark()
-            status.text = statusText() + if (removed) "\nLast mark removed from this Karoo." else "\nNo marks to remove."
+            status.text = statusText() + if (removed) "\nLast mark removed." else "\nNo marks to remove."
         })
         column.addView(text(
-            "A mark already sent stays on the shared map. Ask for it to be removed at swoopahead.pages.dev.", 14f, dim = true))
+            "If the mark was sent in the last day, it comes off the shared map too, the next time there is a link.", 14f, dim = true))
 
         column.addView(heading("About"))
         column.addView(text(
@@ -141,7 +142,7 @@ class SettingsActivity : Activity() {
             else -> "$shared ${if (shared == 1) "spot" else "spots"} near you from the shared map, fetched ${ago(store.syncedAtMs)}."
         }
         if (app.swoops.offline) lines += "The last try to reach the shared map got no answer."
-        lines += "$mine of your own ${if (mine == 1) "mark" else "marks"} kept on this Karoo."
+        lines += "$mine ${if (mine == 1) "mark" else "marks"} of your own kept on this Karoo."
         if (store.queue.isNotEmpty()) lines += "${store.queue.size} waiting to be sent."
         if (app.swoops.spots.isEmpty() && (shared > 0 || mine > 0)) lines += "It's outside the swooping months, so nothing warns."
         val near = app.swoops.nearest

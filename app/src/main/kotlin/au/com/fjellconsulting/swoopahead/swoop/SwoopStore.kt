@@ -30,6 +30,8 @@ class SwoopStore(context: Context) {
     private val spotsFile = File(context.filesDir, "swoops.json")
     private val marksFile = File(context.filesDir, "marks.json")
     private val queueFile = File(context.filesDir, "swoop-queue.json")
+    private val sentFile = File(context.filesDir, "swoop-sent.json")
+    private val cancelsFile = File(context.filesDir, "swoop-cancels.json")
 
     @Volatile var config = SwoopConfig()
         private set
@@ -42,6 +44,12 @@ class SwoopStore(context: Context) {
         private set
     @Volatile var queue: List<Tap> = emptyList()
         private set
+    /** Taps the shared map has, newest last: their uid and when the swoop was. Kept so one can be taken back. */
+    @Volatile var sentTaps: List<Pair<String, Long>> = emptyList()
+        private set
+    /** Taps to take back off the shared map: uid, and when the rider asked. */
+    @Volatile var cancels: List<Pair<String, Long>> = emptyList()
+        private set
 
     init {
         runCatching { read(JSONObject(spotsFile.readText())) }
@@ -52,6 +60,8 @@ class SwoopStore(context: Context) {
                 Mark(m.getDouble(0), m.getDouble(1), m.getLong(2))
             }
         }
+        runCatching { sentTaps = pairs(sentFile) }
+        runCatching { cancels = pairs(cancelsFile) }
         runCatching {
             val array = JSONArray(queueFile.readText())
             queue = (0 until array.length()).map { i ->
@@ -114,17 +124,38 @@ class SwoopStore(context: Context) {
     }
 
     @Synchronized fun sent(uid: String) {
+        val tap = queue.firstOrNull { it.uid == uid }
         queue = queue.filterNot { it.uid == uid }
         saveQueue()
+        if (tap != null) {
+            sentTaps = (sentTaps + (uid to java.time.Instant.parse(tap.at).toEpochMilli())).takeLast(MAX_SENT)
+            savePairs(sentFile, sentTaps)
+        }
     }
 
-    /** Undo the newest mark. If it had not been sent yet, it never is. */
-    @Synchronized fun removeLastMark(): Boolean {
+    /** The shared map has taken this tap back, or it is too late to ask. */
+    @Synchronized fun cancelDone(uid: String) {
+        cancels = cancels.filterNot { it.first == uid }
+        savePairs(cancelsFile, cancels)
+    }
+
+    /**
+     * Undo the newest mark. If it had not been sent yet, it never is. If it was sent in the last
+     * day, the shared map is asked to take it back the next time there is a link.
+     */
+    @Synchronized fun removeLastMark(nowMs: Long): Boolean {
         val last = marks.maxByOrNull { it.atMs } ?: return false
         marks = marks - last
         saveMarks()
         queue = queue.filterNot { it.lat == last.lat && it.lng == last.lng }
         saveQueue()
+        val sent = sentTaps.firstOrNull { it.second == last.atMs }
+        if (sent != null) {
+            sentTaps = sentTaps - sent
+            savePairs(sentFile, sentTaps)
+            cancels = (cancels + (sent.first to nowMs)).takeLast(MAX_SENT)
+            savePairs(cancelsFile, cancels)
+        }
         return true
     }
 
@@ -132,6 +163,15 @@ class SwoopStore(context: Context) {
     @Synchronized fun dropQueue() {
         queue = emptyList()
         saveQueue()
+    }
+
+    private fun pairs(file: File): List<Pair<String, Long>> {
+        val array = JSONArray(file.readText())
+        return (0 until array.length()).map { i -> array.getJSONArray(i).let { it.getString(0) to it.getLong(1) } }
+    }
+
+    private fun savePairs(file: File, list: List<Pair<String, Long>>) {
+        file.writeText(JSONArray(list.map { JSONArray(listOf(it.first, it.second)) }).toString())
     }
 
     private fun saveMarks() {
@@ -145,5 +185,6 @@ class SwoopStore(context: Context) {
     companion object {
         /** More taps than this waiting means weeks with no link; the oldest go. */
         private const val MAX_WAITING = 50
+        private const val MAX_SENT = 30
     }
 }

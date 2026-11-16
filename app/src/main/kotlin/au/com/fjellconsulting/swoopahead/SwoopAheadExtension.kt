@@ -14,7 +14,7 @@ import io.hammerhead.karooext.models.Symbol
  * pins on the Karoo's map. The Karoo starts this when it starts, which starts the app and with
  * it the magpie watch.
  */
-class SwoopAheadExtension : KarooExtension("swoopahead", "0.1.0") {
+class SwoopAheadExtension : KarooExtension("swoopahead", "0.1.1") {
     override val types by lazy { listOf(SwoopField(extension)) }
 
     override fun onBonusAction(actionId: String) {

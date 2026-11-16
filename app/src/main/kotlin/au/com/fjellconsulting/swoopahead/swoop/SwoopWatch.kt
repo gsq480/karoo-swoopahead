@@ -24,8 +24,9 @@ import java.util.concurrent.CopyOnWriteArraySet
  * - The list is fetched from the shared map when the app starts, then every `sync_min` minutes
  *   during a ride and every six hours otherwise. The ask carries the Karoo's position rounded to
  *   a tenth of a degree (about 10 km), and the map sends the nearest spots.
- * - A swoop the rider marks is kept on the Karoo. With sharing on it is also sent to the shared
- *   map, and waits on the Karoo until the map has it.
+ * - A swoop the rider marks can be cancelled for fifteen seconds by one more press ([MarkWindow]).
+ *   After that it is kept on the Karoo. With sharing on it is also sent to the shared map, and
+ *   waits on the Karoo until the map has it.
  *
  * Everything here runs on the app's main-thread scope: the Karoo's callbacks, the field's tap and
  * the button action all hop onto it, so the rule's state has one writer.
@@ -33,6 +34,8 @@ import java.util.concurrent.CopyOnWriteArraySet
 class SwoopWatch(private val app: SwoopAheadApp) {
     val store = SwoopStore(app)
     private val rule = SwoopRule()
+    private val window = MarkWindow()
+    private var pending: Triple<Tap, Mark, Fix>? = null
     private val listeners = CopyOnWriteArraySet<() -> Unit>()
     private var started = false
     private var recording = false
@@ -47,6 +50,9 @@ class SwoopWatch(private val app: SwoopAheadApp) {
 
     /** The nearest spot and how far, from the last fix. Null with no fix or no spots. */
     val nearest: Warning? get() = lastFix?.takeIf { fresh(it) }?.let { SwoopRule.nearest(it, spots) }
+
+    /** Seconds left to cancel the mark just made, or null when there is none to cancel. */
+    val cancelSecondsLeft: Int? get() = window.secondsLeft(System.currentTimeMillis())
 
     /** True when the last try to reach the shared map got no answer. */
     val offline: Boolean get() = askFailed
@@ -93,30 +99,62 @@ class SwoopWatch(private val app: SwoopAheadApp) {
         if (app.prefs.beep) app.karoo.dispatch(PlayBeepPattern(WARN_BEEP))
     }
 
-    /** The rider says a magpie has just swooped here. From the field's tap or the button action. */
+    /**
+     * A press on the Magpie field or the "Mark a swoop" button. The first press marks a swoop where
+     * the Karoo is. One more press within fifteen seconds cancels it, and nothing is sent.
+     */
     fun mark() {
         app.scope.launch {
+            val now = System.currentTimeMillis()
+            if (window.due(now)) keep()
+            if (window.open(now)) {
+                window.press(now)
+                pending = null
+                Log.i(TAG, "mark cancelled inside the window")
+                show("swoop-mark", "Mark cancelled", "Nothing was sent", MARK_MS)
+                app.karoo.dispatch(PlayBeepPattern(CANCEL_BEEP))
+                listeners.forEach { it() }
+                return@launch
+            }
             val fix = lastFix
             if (fix == null || !fresh(fix)) {
                 Log.i(TAG, "mark refused: no fresh fix")
                 show("swoop-mark", "No GPS fix", "Swoop not marked", MARK_MS)
                 return@launch
             }
-            val share = app.prefs.share
+            window.press(now)
             val tap = Tap(fix.lat, fix.lng, lastHeading, Instant.ofEpochMilli(fix.atMs).toString(), "karoo-${UUID.randomUUID()}")
-            store.add(tap, Mark(fix.lat, fix.lng, fix.atMs), share)
-            rule.mark(fix)
-            Log.i(TAG, "marked a swoop, ${store.queue.size} waiting, sharing ${if (share) "on" else "off"}")
-            show("swoop-mark", "Swoop marked", if (share) "Other riders get it when there's a link" else "Kept on this Karoo", MARK_MS)
+            pending = Triple(tap, Mark(fix.lat, fix.lng, fix.atMs), fix)
+            Log.i(TAG, "marked a swoop, ${window.windowMs / 1000} s to cancel")
+            show("swoop-mark", "Swoop marked", "Tap again within ${window.windowMs / 1000} s to cancel", MARK_MS)
             app.karoo.dispatch(PlayBeepPattern(MARK_BEEP))
             listeners.forEach { it() }
-            lastAskMs = 0L
-            talk()
+            delay(window.windowMs + 100)
+            if (window.due(System.currentTimeMillis())) keep()
         }
     }
 
-    /** Undo the newest mark. From the app's screen. */
-    fun removeLastMark(): Boolean = store.removeLastMark().also { if (it) listeners.forEach { l -> l() } }
+    /** The window ran out untouched: the mark is real. Keep it, and send it if the rider shares. */
+    private fun keep() {
+        val (tap, mark, fix) = pending ?: return
+        pending = null
+        val share = app.prefs.share
+        store.add(tap, mark, share)
+        rule.mark(fix)
+        Log.i(TAG, "kept the mark, ${store.queue.size} waiting, sharing ${if (share) "on" else "off"}")
+        listeners.forEach { it() }
+        lastAskMs = 0L
+        app.scope.launch { talk() }
+    }
+
+    /** Undo the newest kept mark. From the app's screen. */
+    fun removeLastMark(): Boolean = store.removeLastMark(System.currentTimeMillis()).also {
+        if (it) {
+            listeners.forEach { l -> l() }
+            lastAskMs = 0L
+            app.scope.launch { talk() }
+        }
+    }
 
     /** Shows the warning and plays its beep with a made-up spot, to see and hear it at the desk. */
     fun demo() {
@@ -149,6 +187,16 @@ class SwoopWatch(private val app: SwoopAheadApp) {
         try {
             var ok = true
             if (!app.prefs.share) store.dropQueue()
+            for ((uid, askedMs) in store.cancels) {
+                // Asked more than a day ago: the shared map no longer takes it back, so stop asking.
+                if (now - askedMs > CANCEL_GIVE_UP_MS || app.http.post("/api/reports/cancel", """{"uid":"$uid","install":"${app.prefs.install}"}""") != null) {
+                    store.cancelDone(uid)
+                    Log.i(TAG, "took a mark back off the shared map, ${store.cancels.size} still to go")
+                } else {
+                    ok = false
+                    break
+                }
+            }
             for (tap in store.queue) {
                 if (app.http.post("/api/reports", tap.json(app.prefs.install)) != null) {
                     store.sent(tap.uid)
@@ -190,5 +238,8 @@ class SwoopWatch(private val app: SwoopAheadApp) {
         /** Three rising notes. */
         private val WARN_BEEP = listOf(Tone(1400, 140), Tone(null, 60), Tone(1900, 140), Tone(null, 60), Tone(2500, 220))
         private val MARK_BEEP = listOf(Tone(2500, 90), Tone(null, 50), Tone(1900, 90))
+        /** Two low notes: it is gone. */
+        private val CANCEL_BEEP = listOf(Tone(1200, 110), Tone(null, 50), Tone(900, 160))
+        private const val CANCEL_GIVE_UP_MS = 25 * 60 * 60_000L
     }
 }

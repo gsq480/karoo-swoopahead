@@ -2,11 +2,11 @@
   "label": "Swoop Ahead",
   "packageName": "au.com.fjellconsulting.swoopahead",
   "latestApkUrl": "https://github.com/gsq480/karoo-swoopahead/releases/latest/download/swoopahead.apk",
-  "latestVersion": "0.1.0",
-  "latestVersionCode": 1,
+  "latestVersion": "0.1.1",
+  "latestVersionCode": 2,
   "developer": "github.com/gsq480",
   "description": "Warns you about 250 m before a magpie swooping spot, with a banner and three rising beeps. Tap the Magpie field to mark a swoop where you are. Marks go to a shared map so other riders are warned too, with no account. The map is at swoopahead.pages.dev.",
-  "releaseNotes": "First public version, a beta.",
+  "releaseNotes": "A mark can now be cancelled: tap the Magpie field again within 15 seconds and nothing is sent. Remove my last mark also takes a mark off the shared map for up to a day.",
   "tags": [
     "safety"
   ]

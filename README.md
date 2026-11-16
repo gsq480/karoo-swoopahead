@@ -6,7 +6,7 @@ those spots that riders fill by tapping. Free, with no account.
 - **The map and the way to report a swoop:** https://swoopahead.pages.dev
 - **This repo:** the Karoo extension in `app/`, and the website and its service in `web/`.
 
-This is version 0.1.0, a beta. Magpies swoop from about August to November, so outside those
+This is version 0.1.1, a beta. Magpies swoop from about August to November, so outside those
 months nothing warns.
 
 Swoop Ahead is free. If it's useful to you, you can [leave a tip](https://ko-fi.com/glen840924).
@@ -19,6 +19,8 @@ Swoop Ahead is free. If it's useful to you, you can [leave a tip](https://ko-fi.
   orange inside the warn distance.
 - Tap the field, or map the **Mark a swoop** action to a button, when a magpie swoops you. The
   Karoo shows **Swoop marked**.
+- Tapped by mistake? Tap again within 15 seconds. The field counts down, the Karoo shows **Mark
+  cancelled**, and nothing is sent.
 - Spots show as caution pins on the Karoo's map.
 
 It warns once per pass, never while you ride away from a spot, and only while a ride is
@@ -62,11 +64,14 @@ On the app's screen on the Karoo:
 - How far out the warning comes: 150, 250 or 400 m.
 - The beep, on or off.
 - Sending your marks to the shared map, on or off.
-- **Sync now**, **Test the warning** and **Remove my last mark**.
+- **Sync now**, **Test the warning** and **Remove my last mark**. If that mark was sent in the last
+  day, it comes off the shared map too.
 
 ## Where the spots come from
 
-- Riders' taps, and reports made on the website.
+- Riders' taps, and reports made on the website. A new spot from the website shows as a hollow dot
+  and warns nobody until it is confirmed: by a tap from a Karoo, by a second report on a later
+  day, or by hand.
 - In Victoria, the Victorian Government's "Map of Victoria with locations of swooping birds
   populated by the public" (Department of Energy, Environment and Climate Action), used under
   Creative Commons Attribution 4.0. Magpie records only.
@@ -113,7 +118,7 @@ else. The three colours are the first three lines of `site.css`. Photograph cred
 `web/public/assets/credits.json` and in the page's footer.
 
 ```
-node web/tools/check.mjs                                   # the rules and the storage, 60 checks
+node web/tools/check.mjs                                   # the rules and the storage, 80 checks
 cd web
 wrangler d1 execute swoopahead --local --file=schema.sql   # make the local database
 wrangler pages dev --d1 DB=<the database_id in wrangler.toml>
@@ -127,6 +132,7 @@ The rules (what joins a spot, what is live, what a stranger's report must pass) 
 - `GET /api/spots?lat=&lng=` the live spots nearest a position, for a Karoo.
 - `GET /api/map` every spot for the website's map.
 - `POST /api/reports` a swoop, from a Karoo or the website.
+- `POST /api/reports/cancel` takes one back: the website within ten minutes, a Karoo within a day.
 - `/api/admin/*` needs the passphrase: remove, quiet, rename or add a spot, and the settings.
 
 ## Credits and licence

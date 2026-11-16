@@ -12,8 +12,8 @@ android {
         // The Karoo 2 runs Android 8 (API 26), the Karoo 3 Android 12 (API 32).
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.1.1"
     }
 
     // The release key is kept outside the repo. Set SWOOPAHEAD_KEYSTORE to its path and
