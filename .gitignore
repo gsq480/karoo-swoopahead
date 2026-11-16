@@ -16,3 +16,5 @@ data/
 out/
 # The taste skill's working files.
 .taste-skill/
+# What is published while the real page is unfinished.
+web/.deploy-holding/

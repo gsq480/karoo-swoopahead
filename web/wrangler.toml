@@ -3,7 +3,7 @@
 #   wrangler pages dev                      run it on this computer
 #   wrangler pages deploy                   publish it
 #
-# The live database's id goes in database_id after `wrangler d1 create swoopahead`.
+# database_id is the live database (made with `wrangler d1 create swoopahead`). It is an id, not a secret.
 # The admin passphrase is a secret, never in this file:
 #   wrangler pages secret put ADMIN_PASSPHRASE --project-name swoopahead
 name = "swoopahead"
@@ -13,4 +13,4 @@ compatibility_date = "2025-11-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "swoopahead"
-database_id = "11111111-2222-4333-8444-555555555555"
+database_id = "244a3fe4-17b6-4bf3-a94b-739ff814f6c5"
