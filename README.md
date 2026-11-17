@@ -6,7 +6,7 @@ those spots that riders fill by tapping. Free, with no account.
 - **The map and the way to report a swoop:** https://swoopahead.pages.dev
 - **This repo:** the Karoo extension in `app/`, and the website and its service in `web/`.
 
-This is version 0.1.1, a beta. Magpies swoop from about August to November, so outside those
+This is version 0.1.2, a beta. Magpies swoop from about August to November, so outside those
 months nothing warns.
 
 Swoop Ahead is free. If it's useful to you, you can [leave a tip](https://ko-fi.com/glen840924).
