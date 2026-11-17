@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ExtensionInfo
     displayName="@string/extension_name"
-    icon="@drawable/ic_magpie"
+    icon="@drawable/ic_app"
     id="swoopahead"
     scansDevices="false"
     mapLayer="true"

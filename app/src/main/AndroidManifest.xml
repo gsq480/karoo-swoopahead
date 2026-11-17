@@ -9,7 +9,7 @@
     <application
         android:name=".SwoopAheadApp"
         android:allowBackup="false"
-        android:icon="@drawable/ic_magpie"
+        android:icon="@drawable/ic_app"
         android:label="@string/app_name"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
 
